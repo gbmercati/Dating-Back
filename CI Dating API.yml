@@ -1,0 +1,50 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+#- powershell: Write-Host "BUILD $env:Build.SourceBranch - $env:Build.SourceBranchName"
+
+- task: SonarQubePrepare@6
+  inputs:
+    SonarQube: 'AzureSonarQube'
+    scannerMode: 'MSBuild'
+    projectKey: 'Project-DatingApp-Key'
+    projectName: 'ProjectDatingApp'
+
+- script: dotnet build --configuration $(buildConfiguration)
+  displayName: 'Build Dating API'
+  workingDirectory: '$(System.DefaultWorkingDirectory)'
+
+- task: SonarQubeAnalyze@6
+  inputs:
+    jdkversion: 'JAVA_HOME_17_X64'
+
+- task: SonarQubePublish@6
+  inputs:
+    pollingTimeoutSec: '300'
+  
+- script: dotnet test --configuration $(buildConfiguration) --no-build --no-restore --logger trx --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+  displayName: 'Test Dating API'
+  workingDirectory: '$(System.DefaultWorkingDirectory)'
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  displayName: Publish test results
+  inputs:
+    testRunner: VSTest
+    testResultsFiles: '**/*.trx'
+- task: PublishCodeCoverageResults@2
+  condition: succeededOrFailed()
+  displayName: Publish code coverage
+  inputs:
+   summaryFileLocation: '**/coverage.cobertura.xml'
